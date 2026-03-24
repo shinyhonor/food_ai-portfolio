@@ -1,0 +1,10 @@
+# Python 임시 파일
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyCharm 설정 파일
+.idea/
+
+# 로컬 데이터베이스
+db.sqlite3
