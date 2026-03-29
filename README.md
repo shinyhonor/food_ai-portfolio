@@ -29,6 +29,17 @@
 - **Design**: AI 서버(Django)를 비즈니스 로직과 분리하여 추론 전용 워커로 구성하고, Spring Boot를 통해 통합 인증 및 라우팅을 수행.
 - **Security**: Spring Security 6를 활용하여 세션 기반 인증 구현. 클라이언트의 민감한 정보 없이 서버 간 통신(Server-to-Server)을 통해 보안성 확보.
 
+### 4. 대용량 트래픽 부하 테스트 및 비동기 아키텍처(Netty) 검증
+- **Challenge**: 대규모 트래픽 발생 시 서버의 응답 지연 및 장애 발생 가능성 점검.
+- **Action**: k6를 활용하여 VUser 10,000명 규모의 스트레스 테스트 스크립트(k6-test/) 직접 작성 및 실행.
+- **Analysis**: 동기(Blocking) 방식에서는 Tomcat의 쓰레드 풀 고갈 및 OS의 동적 포트 고갈(TCP RST)로 인한 Connection Refused 에러 발생을 직접 확인. 
+- **Result**: Netty 기반의 `WebClient` (Non-blocking I/O)로 아키텍처를 전환하여, 단 몇 개의 EventLoop 쓰레드만으로 병목 없이 대규모 동시 요청을 안정적으로 수용하는 것을 데이터로 증명.
+
+### 5. 분산 환경에서의 동시성 제어
+- **Challenge**: 다수의 사용자가 동시에 자원(포인트/잔액)에 접근할 때 발생하는 갱신 손실(Lost Update) 버그 방어.
+- **Action**: 100개의 쓰레드가 동시에 출금 API를 호출하는 테스트 환경을 구축하여 동시성 버그를 로컬에서 재현. 이후, 분산 환경에서도 안전한 **Redis 기반의 분산 락(Redisson)**을 도입.
+- **Result**: 임계 영역을 완벽히 보호하여 데이터 정합성 100%를 보장함과 동시에, 시스템 혼잡 시 무한 대기를 방지하기 위한 Lock의 Wait Time 튜닝을 통해 트래픽 유량 제어 최적화 달성.
+
 ---
 
 ## Engineering Insight
@@ -62,6 +73,29 @@
 
 ## Prerequisites & How to Run
 - **Backend (Spring Boot):** application.yml에 Oracle DB 계정 정보 설정 후 8082 포트로 실행
-- **AI Server (Django):** 가상환경에서 pip install -r requirements.txt 후 python manage.py runserver 0.0.0.0:9000 실행
+- **AI Server (Django):** 가상환경에서 pip install -r requirements.txt 후 python manage.py runserver 0.0.0.0:9000 실행(오라클 계정 오류시 views.py의 connection_str변수에 오라클 계정 정보 설정 필요)
 - **Frontend (Vue.js):** npm install -> npm run serve (8081 포트)
 - **Database Setup:** 원활한 프로젝트 구동 및 AI 추론 결과 매핑을 위해, 최상위 database/ 폴더 내의 init_database.sql 스크립트를 실행하여 4개의 테이블 스키마와 400개의 기본 영양소 데이터 및 테스트용 User 계정을 생성해 주세요.
+
+### How to Run Performance & Concurrency Tests (k6)
+본 프로젝트는 대용량 트래픽 방어와 데이터 정합성 보장을 직접 검증할 수 있는 k6 부하 테스트 스크립트를 제공합니다.
+
+**1. 준비 사항**
+-[k6](https://k6.io/docs/get-started/installation/) 설치
+- Redis 서버 실행(분산 락 테스트 용도): docker run -d -p 6379:6379 redis
+- Spring Boot 서버 실행 (Port: 8082)
+
+**2. 트래픽 방어 테스트(Blocking vs Non-blocking)**
+- Tomcat 쓰레드 고갈 및 Netty(WebClient)의 비동기 처리 성능 차이를 확인합니다.
+
+- VUser 10,000명 동시 접속 테스트 실행
+> k6 run k6-test/load-test.js
+
+**3. Redis 분산 락 동시성 제어 테스트 (Lost Update 방어)**
+- 100명의 유저가 동시에 출금 API를 호출할 때, Redis 분산 락(Redisson)이 갱신 손실 버그를 막고 잔액 무결성을 보장하는지 확인합니다.
+
+- 초기 잔액 10,000원 세팅
+> curl http://localhost:8082/api/bank/reset
+
+- 100명 동시 100원 출금 테스트 실행
+> k6 run k6-test/bank-test.js

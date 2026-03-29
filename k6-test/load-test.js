@@ -2,8 +2,9 @@ import http from 'k6/http';
 import { sleep } from 'k6';
 
 export const options = {
-	// 가상 유저 300명이 동시에 달려들어 10초간 계속 요청을 보냄
-	vus: 300,
+	// 가상 유저 300명이 동시에 달려들어 10초간 계속 요청을 보냄 -> 10000명으로 변경 후
+	// vus: 300,
+	vus: 10000,
 	duration: '10s',
 };
 
