@@ -41,7 +41,7 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED) // 필요시 세션 생성
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll() // 로그인 API는 허용
+                        .requestMatchers("/api/auth/**", "/api/test/**", "/api/bank/**").permitAll() // 로그인 API는 허용
                         .anyRequest().authenticated() // 나머지는 로그인 필수
                 )
                 // 세션 기반 인증 설정

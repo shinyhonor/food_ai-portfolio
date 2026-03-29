@@ -22,3 +22,6 @@ spring:
 
 server:
   port: 8082
+
+server.tomcat.accept-count: 10000
+server.tomcat.max-connections: 20000
