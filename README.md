@@ -88,7 +88,7 @@
 **2. 트래픽 방어 테스트(Blocking vs Non-blocking)**
 - Tomcat 쓰레드 고갈 및 Netty(WebClient)의 비동기 처리 성능 차이를 확인합니다.
 
-- VUser 10,000명 동시 접속 테스트 실행
+- VUser 10,000명 동시 접속 테스트 실행(에러 발생시 load-test.js에 localhost, 127.0.0.1 대신 현재 사용 중인 내부 IP나 외부 IP로 설정 필요)
 > k6 run k6-test/load-test.js
 
 **3. Redis 분산 락 동시성 제어 테스트 (Lost Update 방어)**
@@ -97,5 +97,5 @@
 - 초기 잔액 10,000원 세팅
 > curl http://localhost:8082/api/bank/reset
 
-- 100명 동시 100원 출금 테스트 실행
+- 100명 동시 100원 출금 테스트 실행(에러 발생시 load-test.js에 localhost, 127.0.0.1 대신 현재 사용 중인 내부 IP나 외부 IP로 설정 필요)
 > k6 run k6-test/bank-test.js

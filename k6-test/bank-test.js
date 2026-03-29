@@ -6,6 +6,6 @@ export const options = {
 };
 
 export default function () {
-  // 내부 IP 주소로 통일해서 쏘기
+  // 내부 IP 주소로 통일해서 쏘기. 에러 발생시 localhost, 127.0.0.1 대신 현재 사용 중인 내부 IP나 외부 IP로 설정 필요.
   http.get('http://192.168.0.8:8082/api/bank/withdraw');
 }
