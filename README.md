@@ -97,5 +97,5 @@
 - 초기 잔액 10,000원 세팅
 > curl http://localhost:8082/api/bank/reset
 
-- 100명 동시 100원 출금 테스트 실행(에러 발생시 load-test.js에 localhost, 127.0.0.1 대신 현재 사용 중인 내부 IP나 외부 IP로 설정 필요)
+- 100명 동시 100원 출금 테스트 실행(에러 발생시 bank-test.js에 localhost, 127.0.0.1 대신 현재 사용 중인 내부 IP나 외부 IP로 설정 필요)
 > k6 run k6-test/bank-test.js
