@@ -33,7 +33,7 @@
 - **Challenge**: 대규모 트래픽 발생 시 서버의 응답 지연 및 장애 발생 가능성 점검.
 - **Action**: k6를 활용하여 VUser 10,000명 규모의 스트레스 테스트 스크립트(k6-test/) 직접 작성 및 실행.
 - **Analysis**: 동기(Blocking) 방식에서는 Tomcat의 쓰레드 풀 고갈 및 OS의 동적 포트 고갈(TCP RST)로 인한 Connection Refused 에러 발생을 직접 확인. 
-- **Result**: Netty 기반의 `WebClient` (Non-blocking I/O)로 아키텍처를 전환하여, 단 몇 개의 EventLoop 쓰레드만으로 병목 없이 대규모 동시 요청을 안정적으로 수용하는 것을 데이터로 증명.
+- **Result**: Netty 기반의 WebClient(Non-blocking I/O)로 아키텍처를 전환하여, 단 몇 개의 EventLoop 쓰레드만으로 병목 없이 대규모 동시 요청을 안정적으로 수용하는 것을 데이터로 증명.
 
 ### 5. 분산 환경에서의 동시성 제어
 - **Challenge**: 다수의 사용자가 동시에 자원(포인트/잔액)에 접근할 때 발생하는 갱신 손실(Lost Update) 버그 방어.
