@@ -11,16 +11,26 @@
 	   <Navbar/>
 	
 	   <!-- Page Header Start -->
-	   <div class="container-fluid page-header py-4 mb-2 wow fadeIn" data-wow-delay="0.1s">
-		  <div class="container text-center py-3">
-			 <h3 class="display-5 text-white mb-2 animated slideInDown">카메라 촬영 페이지</h3>
-		  </div>
-	   </div>
+		<div class="container-fluid page-header py-4 mb-2 wow fadeIn" data-wow-delay="0.1s">
+			<div class="container text-center py-3">
+				<h3 class="display-5 text-white mb-2 animated slideInDown">카메라 촬영 페이지</h3>
+			</div>
+		</div>
 	   <!-- Page Header End -->
 		<div class="container-xxl py-5">
 		  <div class="container mt-5">
 			 <!-- 첫번째 행 시작 -->
 			 <div class="row g-5 align-items-stretch maincol pb-4">
+				<!-- Kafka 비동기 처리 토글 스위치 -->
+				<div class="kafka-toggle-container mt-4">
+					<h4>
+						<span class="kafka-label">Kafka 대용량 트래픽 모드(비동기 큐잉)</span>
+					</h4>
+					<label class="switch">
+						<input type="checkbox" v-model="useKafka">
+						<span class="slider round"></span>
+					</label>
+				</div>
 				<div class="col-lg-3 col-md-5 d-flex justify-content-center" data-wow-delay="0.1s">
 					<div class="border-start ps-4">
 					<img class="img-fluid" src="../../assets/img/camera/icons8-caution-sign-64.png" style="width: 100px;height: 100px;">
@@ -34,6 +44,7 @@
 					<span></span>
 					</div>
 				</div>
+
 				<div class="col-lg-6 col-md-7 wow fadeInUp" data-wow-delay="0.3s">
 					<div v-show="hasResult_webcam" id="result" class="web-camera-container">
 						<img id="img_res" ref="img_res" width="450" height="337.5"/>
@@ -216,6 +227,7 @@ export default {
     },
     data() {
 		return {
+	        useKafka: false, // Kafka 모드 상태(기본값: 직접 통신)
 			isLoggedIn: false, // 로그인 상태 체크
 			isCameraOpen: false, // 카메라 열림닫힘
 			isPhotoTaken: false, // 사진활영 여부
@@ -371,8 +383,8 @@ export default {
 			formData.append("org_img", canvas);
 			try {
 				this.isLoadingImg = true;
-				await axios.post("http://localhost:8082/api/food/detect/webcam", formData)
-				.then((res) => {
+				const res = await axios.post("http://localhost:8082/api/food/detect/webcam", formData);
+				if (res.data.res_code === "1") {
 					console.log("전송이 성공적으로 완료")
 					console.log(res.data);
 					this.$refs.img_res.src = res.data.diet_img_pred;
@@ -380,14 +392,24 @@ export default {
 					this.totalCal = res.data.totalCal;
 					this.showFoods();
 					this.hasResult_webcam = true;
-				})
-				.catch((error) => {
-					console.log("Error sending image:", error);
-				});
-				this.isLoadingImg = false;
+				} else {
+					this.isLoadingImg = false;
+					// Django가 꺼져있어서 res_code: "0"이 온 경우
+					Swal.fire({
+						icon: "error",
+						title: "분석 실패",
+						text: res.data.text // "AI 분석 서버가 현재 점검 중입니다..." 출력
+					});					
+				}
 			} catch (err) {
 				console.log("Error sending image:", error);
 				this.isLoadingImg = false;
+				// 네트워크 에러 자체가 난 경우 (Spring Boot가 꺼진 경우 등)
+				Swal.fire({
+					icon: "warning",
+					title: "통신 오류",
+					text: "백엔드 서버와 연결할 수 없습니다."
+				});
 			} finally {
 				this.isLoadingImg = false;
 			}
@@ -404,47 +426,12 @@ export default {
 			let formData = new FormData();
 			formData.append("meal_time", (new Date()).toString().slice(16,21));
 			formData.append("type", "webcam");
-			try {
-				this.isLoadingImg = true;
-				axios.post("http://localhost:8082/api/food/save/webcam", formData)
-				.then((res) => {
-					this.isLoadingImg = false;
-					if (res.data.res_code === "1"){
-						Swal.fire({
-							position: "top-end",
-							icon: "success",
-							title: res.data.text,
-							showConfirmButton: false,
-							timer: 1500
-						});
-					} else {
-						Swal.fire({
-							icon: "question",
-							title: "식단 등록 실패",
-							footer: "원인 : " + res.data.text,
-						});
-					}
-				})
-				.catch((error) => {
-					this.isLoadingImg = false;
-					Swal.fire({
-						icon: "error",
-						title: "식단 등록 실패",
-						footer: "원인 : " + error
-					});
-				});
-			} catch (err) {
-				this.isLoadingImg = false;
-				Swal.fire({
-					icon: "error",
-					title: "식단 등록 실패",
-					footer: "원인 : " + err
-				});
-			} finally {
-				this.isLoadingImg = false;
-			}
+	        formData.append("use_kafka", this.useKafka); // 백엔드에 상태 전달!
+
+			this.sendSaveRequest(formData);
 		},
 		fileSelect_upload(){
+			this.hasFoodInfo = false;
 			this.uploadFile = this.$refs.uploadFile.files[0]; // 사용자가 올린 이미지
 			if(this.uploadFile !== undefined){
 				// URL.createObjectURL로 사용자가 올린 이미지를 URL로 만들어서 화면에 표시할 수 있게 한다. img 태그의 src값에 바인딩해준다
@@ -462,8 +449,8 @@ export default {
 				formData.append("mfile", this.uploadFile);
 				try {
 					this.isLoadingImg = true;
-					await axios.post("http://localhost:8082/api/food/detect/upload", formData, {headers:{'Content-Type':'multipart/form-data'}})
-					.then((res) => {
+					const res = await axios.post("http://localhost:8082/api/food/detect/upload", formData, {headers:{'Content-Type':'multipart/form-data'}});
+					if (res.data.res_code === "1") {
 						console.log("전송이 성공적으로 완료")
 						console.log(res.data);
 						this.$refs.img_res_upload.src = res.data.diet_img_upload_pred;
@@ -473,13 +460,23 @@ export default {
 
 						this.hasResult_upload = true;
 						this.hasUpload = true;
-					})
-					.catch((error) => {
-						console.log("Error sending image:", error);
-					});
-				this.isLoadingImg = false;
+					} else {
+						this.isLoadingImg = false;
+						// Django가 꺼져있어서 res_code: "0"이 온 경우
+						Swal.fire({
+							icon: "error",
+							title: "분석 실패",
+							text: res.data.text // "AI 분석 서버가 현재 점검 중입니다..." 출력
+						});
+					}
 				} catch (err) {
 					this.isLoadingImg = false;
+					// 네트워크 에러 자체가 난 경우 (Spring Boot가 꺼진 경우 등)
+					Swal.fire({
+						icon: "warning",
+						title: "통신 오류",
+						text: "백엔드 서버와 연결할 수 없습니다."
+					});
 				} finally {
 					this.isLoadingImg = false;
 				}
@@ -493,46 +490,33 @@ export default {
 		},
 		uploadToDB_web(){
 			let formData = new FormData();
-			formData.append("user_id", this.user_id);
 			formData.append("meal_time", (new Date()).toString().slice(16,21));
+			formData.append("type", "upload");
+			formData.append("use_kafka", this.useKafka); // 백엔드에 상태 전달!
+
+			this.sendSaveRequest(formData);
+		},
+		async sendSaveRequest(formData) {
 			try {
 				this.isLoadingImg = true;
-				axios.post("http://localhost:8082/api/food/save/upload", formData)
-				.then((res) => {
-					this.isLoadingImg = false;
-					if (res.data.res_code === "1"){
-						Swal.fire({
-							position: "top-end",
-							icon: "success",
-							title: res.data.text,
-							showConfirmButton: false,
-							timer: 1500
-						});
-					} else {
-						Swal.fire({
-							icon: "question",
-							title: "식단 등록 실패",
-							footer: "원인 : " + res.data.text,
-						});
-					}
-				})
-				.catch((error) => {
-					this.isLoadingImg = false;
+				const res = await axios.post("http://localhost:8082/api/food/save", formData);
+				this.isLoadingImg = false;
+
+				if (res.data.res_code === "1") {
 					Swal.fire({
-						icon: "error",
-						title: "식단 등록 실패",
-						footer: "원인 : " + error
+						position: "center",
+						icon: "success",
+						title: this.useKafka ? "Kafka 큐 접수 완료" : "식단 등록 완료",
+						text: res.data.text,
+						showConfirmButton: !this.useKafka,
+						timer: this.useKafka ? 2000 : 1500
 					});
-				});
-			} catch (err) {
+				} else {
+					Swal.fire({ icon: "error", title: "식단 등록 실패", text: res.data.text });
+				}
+			} catch (error) {
 				this.isLoadingImg = false;
-				Swal.fire({
-					icon: "error",
-					title: "식단 등록 실패",
-					footer: "원인 : " + err
-				});
-			} finally {
-				this.isLoadingImg = false;
+				Swal.fire({ icon: "error", title: "서버 통신 에러", text: error.message });
 			}
 		},
 		showFoods(){
@@ -947,4 +931,48 @@ export default {
             }
             .food_detail {}
         }    
+</style>
+
+<style lang="css" scoped>
+	/* iOS 스타일의 세련된 토글 스위치 */
+	.kafka-toggle-container {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 15px;
+		background: #f8f9fa;
+		padding: 10px;
+		border-radius: 8px;
+		box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+	}
+	.kafka-label {
+		font-weight: bold;
+		color: #333;
+	}
+	.switch {
+		position: relative;
+		display: inline-block;
+		width: 50px;
+		height: 28px;
+	}
+	.switch input { opacity: 0; width: 0; height: 0; }
+	.slider {
+		position: absolute;
+		cursor: pointer;
+		top: 0; left: 0; right: 0; bottom: 0;
+		background-color: #ccc;
+		transition: .4s;
+	}
+	.slider:before {
+		position: absolute;
+		content: "";
+		height: 20px; width: 20px;
+		left: 4px; bottom: 4px;
+		background-color: white;
+		transition: .4s;
+	}
+	input:checked + .slider { background-color: #0050FF; /* 토스 블루 컬러 */ }
+	input:checked + .slider:before { transform: translateX(22px); }
+	.slider.round { border-radius: 34px; }
+	.slider.round:before { border-radius: 50%; }
 </style>

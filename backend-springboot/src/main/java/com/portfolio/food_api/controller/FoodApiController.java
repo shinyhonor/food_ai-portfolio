@@ -1,6 +1,8 @@
 package com.portfolio.food_api.controller;
 
+import com.portfolio.food_api.service.DietKafkaService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -12,6 +14,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/food")
 @CrossOrigin(origins = "http://localhost:8081") // Vue 포트
@@ -19,6 +22,7 @@ import java.util.UUID;
 public class FoodApiController {
 
     private final WebClient webClient;
+    private final DietKafkaService dietKafkaService;
 
     // Django 엔드포인트 상수
     private static final String DJANGO_URL_DETECT_WEBCAM = "/food_ai/detectFoodWeb";
@@ -62,35 +66,37 @@ public class FoodApiController {
     }
 
     /**
-     * 3. 웹캠 결과 DB 저장 요청
+     * 3. 웹캠, 업로드 결과 DB 저장 요청
      */
-    @PostMapping("/save/webcam")
-    public Mono<String> saveWebcam(@RequestParam("meal_time") String mealTime, Authentication authentication) throws IOException {
-        String currentUserId = authentication.getName();
-        String boundary = createBoundary();
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    @PostMapping("/save")
+    public Mono<String> saveDiet(@RequestParam("meal_time") String mealTime,
+                                 @RequestParam("type") String type,
+                                 @RequestParam(value = "use_kafka", defaultValue = "false") boolean useKafka,
+                                 Authentication authentication) throws IOException {
 
-        writePart(baos, boundary, "user_id", null, null, currentUserId.getBytes(StandardCharsets.UTF_8));
-        writePart(baos, boundary, "meal_time", null, null, mealTime.getBytes(StandardCharsets.UTF_8));
-        finishBoundary(baos, boundary);
+        // 1. SecurityContext에서 완벽하게 ID 추출
+        String userId = authentication.getName();
 
-        return sendToDjango(DJANGO_URL_SAVE_WEBCAM, boundary, baos.toByteArray());
-    }
+        // 아키텍처 A: Kafka 비동기 이벤트 큐잉 모드(대용량 트래픽 방어)
+        if (useKafka) {
+            dietKafkaService.sendSaveEvent(userId, mealTime, type);
+            return Mono.just("{\"res_code\":\"1\", \"text\":\"[Kafka 대용량 모드] 저장 요청이 안전하게 큐에 접수되었습니다.\"}");
+        }
 
-    /**
-     * 4. 업로드 결과 DB 저장 요청
-     */
-    @PostMapping("/save/upload")
-    public Mono<String> saveUpload(@RequestParam("meal_time") String mealTime, Authentication authentication) throws IOException {
-        String currentUserId = authentication.getName();
-        String boundary = createBoundary();
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        // 아키텍처 B: WebClient 비동기-대기 모드(UX 중심 즉각 피드백)
+        else {
+            String boundary = createBoundary();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
-        writePart(baos, boundary, "user_id", null, null, currentUserId.getBytes(StandardCharsets.UTF_8));
-        writePart(baos, boundary, "meal_time", null, null, mealTime.getBytes(StandardCharsets.UTF_8));
-        finishBoundary(baos, boundary);
+            writePart(baos, boundary, "user_id", null, null, userId.getBytes(StandardCharsets.UTF_8));
+            writePart(baos, boundary, "meal_time", null, null, mealTime.getBytes(StandardCharsets.UTF_8));
+            finishBoundary(baos, boundary);
 
-        return sendToDjango(DJANGO_URL_SAVE_UPLOAD, boundary, baos.toByteArray());
+            String endpoint = "webcam".equals(type) ? DJANGO_URL_SAVE_WEBCAM : DJANGO_URL_SAVE_UPLOAD;
+
+            // Django의 응답을 끝까지 기다렸다가 프론트로 반환
+            return sendToDjango(endpoint, boundary, baos.toByteArray());
+        }
     }
 
     // --- [공통 유틸리티 메소드] ---
@@ -121,6 +127,11 @@ public class FoodApiController {
                 .header("Content-Length", String.valueOf(rawBody.length))
                 .bodyValue(rawBody)
                 .retrieve()
-                .bodyToMono(String.class);
+                .bodyToMono(String.class)
+                // Django 서버가 꺼져있거나 에러 발생 시 처리
+                .onErrorResume(e -> {
+                    log.error("Django 서버 통신 실패: {}", e.getMessage());
+                    return Mono.just("{\"res_code\":\"0\", \"text\":\"AI 분석 서버가 현재 점검 중입니다. 잠시 후 다시 시도해주세요.\"}");
+                });
     }
 }
