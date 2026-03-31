@@ -47,11 +47,6 @@
 
 ---
 
-## Engineering Insight
-> "프레임워크가 제공하는 편리함 뒤에 숨겨진 HTTP 프로토콜의 동작 원리를 깊게 이해하는 계기가 되었습니다. 특히 WSGI와 ASGI의 스펙 차이로 발생하는 통신 이슈를 해결하며, 인프라 환경에 최적화된 전송 전략을 설계하는 능력을 길렀습니다."
-
----
-
 ## Tech Stack
 
 ### Backend & AI
@@ -82,6 +77,7 @@
 - **AI Server (Django):** 가상환경에서 pip install -r requirements.txt 후 python manage.py runserver 0.0.0.0:9000 실행(오라클 계정 오류시 views.py의 connection_str변수에 오라클 계정 정보 설정 필요)
 - **Frontend (Vue.js):** npm install -> npm run serve (8081 포트)
 - **Database Setup:** 원활한 프로젝트 구동 및 AI 추론 결과 매핑을 위해, 최상위 database/ 폴더 내의 init_database.sql 스크립트를 실행하여 4개의 테이블 스키마와 400개의 기본 영양소 데이터 및 테스트용 User 계정을 생성해 주세요.
+- **Docker Desktop 설치**
 - **Kafka 서버 실행(비동기 메시지 큐 용도):** 최상위 폴더에서 다음 명령을 실행
 > docker-compose -f docker/kafka/docker-compose.yml up -d
 
@@ -89,7 +85,6 @@
 본 프로젝트는 대용량 트래픽 방어와 데이터 정합성 보장을 직접 검증할 수 있는 k6 부하 테스트 스크립트를 제공합니다.
 
 **1. 준비 사항**
-- Docker Desktop 설치
 - k6 설치(https://k6.io/docs/get-started/installation/)
 - Redis 서버 실행(분산 락 테스트 용도): docker run -d -p 6379:6379 redis
 - Spring Boot 서버 실행 (Port: 8082)
