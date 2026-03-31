@@ -43,7 +43,7 @@
 ### 6. 비동기 이벤트 드리븐 아키텍처 및 장애 내성 구축
 - **Challenge**: 식단 저장 요청이 폭주하거나 AI 서버(Django) 장애 발생 시, 데이터가 유실되고 시스템 전체의 장애로 전파되는 위험 존재.
 - **Action**: Spring Boot와 Django 사이에 **Apache Kafka**를 도입하여 결합도를 낮추고 비동기 처리 환경 구축. 클라이언트 UI에 Kafka 토글 스위치를 구현하여, 트래픽 상황에 따라 동기(UX 중심)/비동기(서버 생존 중심) 모드를 전환할 수 있도록 설계.
-- **Result**: Django 서버의 다운타임 시에도 데이터가 유실되지 않도록 Consumer의 DefaultErrorHandler를 통한 재시도(Back-off: 2초 간격 10회) 로직을 구현하여 시스템의 **장애 내성과 고가용성** 확보.
+- **Result**: Django 서버의 일시적 다운타임 시에도 데이터가 유실되지 않도록 DefaultErrorHandler를 통한 재시도(Back-off: 2초 간격 10회) 로직을 구현하여 시스템의 **장애 내성**을 테스트했습니다. 이를 통해 메시지 큐의 안정성을 확인했으며, 장기 장애에 대비한 DLQ(Dead Letter Queue) 도입의 필요성을 도출했습니다.
 
 ---
 
@@ -82,6 +82,8 @@
 - **AI Server (Django):** 가상환경에서 pip install -r requirements.txt 후 python manage.py runserver 0.0.0.0:9000 실행(오라클 계정 오류시 views.py의 connection_str변수에 오라클 계정 정보 설정 필요)
 - **Frontend (Vue.js):** npm install -> npm run serve (8081 포트)
 - **Database Setup:** 원활한 프로젝트 구동 및 AI 추론 결과 매핑을 위해, 최상위 database/ 폴더 내의 init_database.sql 스크립트를 실행하여 4개의 테이블 스키마와 400개의 기본 영양소 데이터 및 테스트용 User 계정을 생성해 주세요.
+- **Kafka 서버 실행(비동기 메시지 큐 용도):** 최상위 폴더에서 다음 명령을 실행
+> docker-compose -f docker/kafka/docker-compose.yml up -d
 
 ### How to Run Performance & Concurrency Tests (k6)
 본 프로젝트는 대용량 트래픽 방어와 데이터 정합성 보장을 직접 검증할 수 있는 k6 부하 테스트 스크립트를 제공합니다.
@@ -90,8 +92,6 @@
 - Docker Desktop 설치
 - k6 설치(https://k6.io/docs/get-started/installation/)
 - Redis 서버 실행(분산 락 테스트 용도): docker run -d -p 6379:6379 redis
-- Kafka 서버 실행(비동기 메시지 큐 용도): 최상위 폴더에서 다음 명령을 실행
-> docker-compose -f docker/kafka/docker-compose.yml up -d
 - Spring Boot 서버 실행 (Port: 8082)
 
 **2. 트래픽 방어 테스트(Blocking vs Non-blocking)**
