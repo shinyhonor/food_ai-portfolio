@@ -29,11 +29,11 @@
 - **Design**: AI 서버(Django)를 비즈니스 로직과 분리하여 추론 전용 워커로 구성하고, Spring Boot를 통해 통합 인증 및 라우팅을 수행.
 - **Security**: Spring Security 6를 활용하여 세션 기반 인증 구현. 클라이언트의 민감한 정보 없이 서버 간 통신(Server-to-Server)을 통해 보안성 확보.
 
-### 4. 대용량 트래픽 부하 테스트 및 비동기 아키텍처(Netty) 검증
-- **Challenge**: 대규모 트래픽 발생 시 서버의 응답 지연 및 장애 발생 가능성 점검.
-- **Action**: k6를 활용하여 VUser 10,000명 규모의 스트레스 테스트 스크립트(k6-test/) 직접 작성 및 실행.
-- **Analysis**: 동기(Blocking) 방식에서는 Tomcat의 쓰레드 풀 고갈 및 OS의 동적 포트 고갈(TCP RST)로 인한 Connection Refused 에러 발생을 직접 확인. 
-- **Result**: Netty 기반의 WebClient(Non-blocking I/O)로 아키텍처를 전환하여, 단 몇 개의 EventLoop 쓰레드만으로 병목 없이 대규모 동시 요청을 안정적으로 수용하는 것을 데이터로 증명.
+### 4. 대용량 트래픽 환경에 대비한 아키텍처 개선 ([Java 17]WebClient -> Java 21 Virtual Threads)
+- **Challenge**: VUser 10,000명 규모의 k6 부하 테스트 시, 기존 동기(Blocking) 방식에서는 Tomcat의 OS 스레드 풀 고갈 및 포트 고갈(TCP RST)로 인한 시스템 장애가 발생함을 확인했습니다.
+- **Action (Phase 1)**: 이를 개선하고자 Netty 기반의 WebClient(Non-blocking I/O)를 도입하여 적은 스레드로 트래픽 병목을 해소할 수 있음을 데이터로 검증했습니다.
+- **Action (Phase 2 - Refactoring)**: 하지만 비동기 코드 특유의 복잡성과 디버깅의 어려움이 장기적인 유지보수에 부담이 될 수 있음을 인지했습니다. 이에 대안을 모색하던 중, **Java 21 (Eclipse Temurin)로 환경을 업그레이드하고 Spring Boot의 가상 스레드를 도입**하는 방안을 적용했습니다.
+- **Result**: 동기식(RestClient)의 직관적인 코드 구조를 유지하면서도, I/O 대기 시 OS 스레드가 아닌 수만 개의 가벼운 가상 스레드(tomcat-handler)가 동작하도록 아키텍처를 개선했습니다. 결과적으로 **비동기 방식에 준하는 트래픽 처리량(Throughput)을 확보함과 동시에, 팀 단위 협업에 유리한 코드의 유지보수성을 함께 고려하는 엔지니어링 경험**을 쌓을 수 있었습니다.
 
 ### 5. 분산 환경에서의 동시성 제어
 - **Challenge**: 다수의 사용자가 동시에 자원(포인트/잔액)에 접근할 때 발생하는 갱신 손실(Lost Update) 버그 방어.
@@ -50,8 +50,10 @@
 ## Tech Stack
 
 ### Backend & AI
-- **Java 17, Spring Boot 3.5.12, Spring Security 6**
+- **Eclipse Temurin 21, Spring Boot 3.5.12**
+- **Spring MVC + Virtual Threads (Project Loom)**
 - **Spring WebFlux (WebClient)**
+- **Spring Security 6, RestClient**
 - **Apache Kafka**
 - **Python 3.9, Django**
 - **YOLOv8 (Object Detection)**

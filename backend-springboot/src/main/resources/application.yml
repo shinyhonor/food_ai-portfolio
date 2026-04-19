@@ -2,8 +2,10 @@ spring:
   datasource:
     url: jdbc:oracle:thin:@localhost:1521:xe
     username: food_ai
-    password: DUMMY_PASSWORD_FOR_GITHUB_UPLOAD
+    password: a1234
     driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      maximum-pool-size: 50 # 서비스 상황에 맞게 모니터링 후 조정
 
   jpa:
     hibernate:
@@ -31,8 +33,20 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
+  threads:
+    virtual:
+      enabled: true # 가상 스레드 활성화
+
+
 server:
   port: 8082
 
-server.tomcat.accept-count: 10000
-server.tomcat.max-connections: 20000
+  tomcat:
+    max-connections: 12000 # 10,000명 접속 대비
+    accept-count: 1000
+
+#DB 환경 로그 확인
+#logging:
+#  level:
+#    com.zaxxer.hikari: DEBUG
+

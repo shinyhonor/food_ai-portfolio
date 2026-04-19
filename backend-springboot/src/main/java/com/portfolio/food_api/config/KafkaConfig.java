@@ -17,7 +17,7 @@ public class KafkaConfig {
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(fixedBackOff);
 
         // 만약 복구가 불가능한 에러(예: 데이터 포맷 오류)면 아예 재시도를 안 하게 막기
-         errorHandler.addNotRetryableExceptions(IllegalArgumentException.class);
+        errorHandler.addNotRetryableExceptions(IllegalArgumentException.class);
 
         return errorHandler;
     }
