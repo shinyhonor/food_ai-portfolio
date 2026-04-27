@@ -35,14 +35,14 @@
 *   **Java 21 Virtual Threads 도입:** 초기에는 비동기 I/O 기반의 `WebClient`를 도입하여 성능을 검증했으나, 비동기 코드의 높은 코드 복잡도와 디버깅 비용을  확인했습니다. 이를 근본적으로 개선하기 위해 Java 21의 **가상 스레드**를 전면 도입했습니다. 동기식 코드(`RestClient`)의 직관적인 가독성을 유지하면서, I/O 대기 시 OS 스레드 낭비를 막아 비동기 방식에 준하는 대용량 처리량을 확보했습니다.
 
 ### 2. 네트워크 프로토콜 최적화 및 스토리지 제어
-*   **Claim Check 패턴 적용:** 대용량 이미지 바이너리가 서버 간 네트워크를 타고 다니며 대역폭을 낭비하는 안티패턴을 해결했습니다. 이미지 본체는 **S3(MinIO)**에 저장하고, Kafka 및 서버 간에는 가벼운 **S3 Key(참조 주소)**만 공유합니다.
-*   **Manual Serialization을 통한 프로토콜 한계 돌파:** 과도기 아키텍처에서, WebClient의 Chunked 전송과 수신측 WSGI 서버 간의 스펙 불일치로 데이터가 유실이 발생했습니다. 이를 프레임워크에 의존하지 않고 **RFC 7578 규격에 맞춘 수동 바이트 스트림 조립(Manual Serialization)**으로 문제를 해결하며, HTTP 프로토콜의 본질을 깊이 이해하는 계기가 되었습니다.
+*   **Claim Check 패턴 적용:** 대용량 이미지 바이너리가 서버 간 네트워크를 타고 다니며 대역폭을 낭비하는 안티패턴을 해결했습니다. 이미지 본체는 **S3**(MinIO)에 저장하고, Kafka 및 서버 간에는 가벼운 **S3 Key**(참조 주소)만 공유합니다.
+*   **Manual Serialization을 통한 프로토콜 한계 돌파:** 과도기 아키텍처에서, WebClient의 Chunked 전송과 수신측 WSGI 서버 간의 스펙 불일치로 데이터가 유실이 발생했습니다. 이를 프레임워크에 의존하지 않고 **RFC 7578 규격에 맞춘 수동 바이트 스트림 조립**(Manual Serialization)으로 문제를 해결하며, HTTP 프로토콜의 본질을 깊이 이해하는 계기가 되었습니다.
 *   **S3 Lifecycle 및 Zero-Network Copy:** S3 내 임시 저장소(`temp/`)와 영구 저장소(`user_data/`)를 분리하고, **S3 CopyObject API**를 통해 서버의 네트워크 대역폭 소모 없이 스토리지 계층 내부에서만 데이터가 이동하도록 설계했습니다. 또한 `MinIO Client(mc)`를 활용해 임시 파일의 생명주기를 자동화했습니다.
 
 ### 3. 무상태(Stateless) 기반 보안 및 데이터 인프라 고도화
 *   **Nginx `auth_request` 기반 Zero-Trust 서빙:** WAS가 무거운 정적 파일(이미지)을 직접 서빙하여 OOM(Out of Memory)이 발생하는 것을 방어했습니다. 이미지는 Private S3에 은닉하고, Nginx가 서빙과 캐싱을 전담하도록 인프라를 분리했습니다. Spring Boot는 Nginx의 요청을 받아 JWT 티켓의 유효성만 검증하는 가벼운 인가(Authorization) API를 제공하도록 설계했습니다.
 *   **RTR (Refresh Token Rotation) 보안 아키텍처:** 세션을 제거하고 무상태 JWT 인증 체계를 구축했습니다. Access Token은 메모리에, Refresh Token은 HttpOnly 쿠키에 분리하여 XSS/CSRF를 방어했습니다. 나아가 Redis를 활용하여 탈취된 토큰의 재사용을 탐지하고 즉각 세션을 무효화하는 로직을 구현했습니다.
-*   **2-Level Cache & Caching Invalidation:** 정적 마스터 데이터(영양소)의 반복적인 DB 조회 부하를 없애기 위해 **Caffeine(L1)**과 **Redis(L2)**를 결합했습니다. 서버 기동 시 `Cache Warming`으로 초기 지연을 제거하고, 데이터 변경 시 **Kafka를 통해 모든 서버의 로컬 캐시를 비우는 전파(Broadcasting)** 로직을 설계하여 분산 환경의 데이터 정합성을 유지했습니다.
+*   **2-Level Cache & Caching Invalidation:** 정적 마스터 데이터(영양소)의 반복적인 DB 조회 부하를 없애기 위해 **Caffeine**(L1)과 **Redis**(L2)를 결합했습니다. 서버 기동 시 `Cache Warming`으로 초기 지연을 제거하고, 데이터 변경 시 **Kafka를 통해 모든 서버의 로컬 캐시를 비우는 전파(Broadcasting)** 로직을 설계하여 분산 환경의 데이터 정합성을 유지했습니다.
 
 ---
 
