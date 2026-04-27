@@ -83,14 +83,14 @@
 
 ---
 
-## Tech Stack
+## 기술 스택
 
-- Backend / Architecture: Java 21, Spring Boot 3.5.12, Spring Security 6, JPA (Hibernate), MapStruct
-- Infrastructure / MQ: Nginx, MinIO (S3 API), Apache Kafka, Docker
-- AI Worker: Python 3.12, YOLOv8 (Object Detection), OpenCV
-- Frontend: Vue.js 3, Axios, SweetAlert2
-- Database / Cache: Oracle 11g, Redis, Caffeine Cache
-- Test / Observability: k6 (Load Testing), SLF4J MDC (Distributed Tracing)
+- 백엔드 및 아키텍처: Java 21, Spring Boot 3.5.12, Spring Security 6, JPA (Hibernate), MapStruct
+- 인프라 및 메시지 큐: Nginx, MinIO (S3 API), Apache Kafka, Docker
+- AI 워커: Python 3.12, YOLOv8 (Object Detection), OpenCV
+- 프론트엔드: Vue.js 3, Axios, SweetAlert2
+- 데이터베이스 및 캐시: Oracle 11g, Redis, Caffeine Cache
+- 테스트 및 모니터링: k6 (부하 테스트), SLF4J MDC (분산 추적)
 
 ---
 
