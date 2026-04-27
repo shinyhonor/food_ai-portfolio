@@ -1,0 +1,11 @@
+# Web & Message Broker
+confluent-kafka==2.14.0
+
+# AWS / S3 Infrastructure
+boto3==1.42.93
+
+# AI & Computer Vision
+ultralytics==8.4.41
+opencv-python==4.13.0.92
+torch==2.11.0
+torchvision==0.26.0

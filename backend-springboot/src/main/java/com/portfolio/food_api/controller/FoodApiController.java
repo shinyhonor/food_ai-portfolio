@@ -1,137 +1,90 @@
 package com.portfolio.food_api.controller;
 
+import com.portfolio.food_api.dto.FoodInfoResponseDto;
 import com.portfolio.food_api.service.DietKafkaService;
+import com.portfolio.food_api.service.S3UploadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.security.core.Authentication;
-import reactor.core.publisher.Mono;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.UUID;
+import java.util.List;
+import java.util.Map;
 
+/**
+ * [API Gateway / BFF] 서비스 통합 제어 레이어
+ * 클라이언트의 요청을 수신하여 인프라(S3)와 메시징(Kafka) 레이어를 조율하는 진입점
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/food")
-@CrossOrigin(origins = "http://localhost:8081") // Vue 포트
+@CrossOrigin(origins = "http://localhost:8081")
 @RequiredArgsConstructor
 public class FoodApiController {
 
-    private final WebClient webClient;
+    private final S3UploadService s3UploadService;
     private final DietKafkaService dietKafkaService;
 
-    // Django 엔드포인트 상수
-    private static final String DJANGO_URL_DETECT_WEBCAM = "/food_ai/detectFoodWeb";
-    private static final String DJANGO_URL_SAVE_WEBCAM = "/food_ai/detectFoodWeb_save";
-    private static final String DJANGO_URL_UPLOAD = "/food_ai/detectFoodWebUpload";
-    private static final String DJANGO_URL_SAVE_UPLOAD = "/food_ai/detectFoodWebUpload_save";
-
-    private static final String CRLF = "\r\n";
-
     /**
-     * 1. 웹캠 캡처 이미지(Base64) 판독 요청
+     * 웹캠 캡처 분석 요청(비동기 파이프라인)
      */
     @PostMapping("/detect/webcam")
-    public Mono<String> detectWebcam(@RequestParam("org_img") String orgImg, Authentication authentication) throws IOException {
-        String currentUserId = authentication.getName();
-        String boundary = createBoundary();
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    public ResponseEntity<Map<String, Object>> detectWebcam(@RequestParam("org_img") String base64Image,
+                                                            Authentication authentication) {
+        String userId = authentication.getName();
+        String s3Key = s3UploadService.uploadAndGetKey(base64Image);
 
-        writePart(baos, boundary, "user_id", null, null, currentUserId.getBytes(StandardCharsets.UTF_8));
-        writePart(baos, boundary, "org_img", null, null, orgImg.getBytes(StandardCharsets.UTF_8));
-        finishBoundary(baos, boundary);
+        // AI 워커 서버로 분석 이벤트 발행
+        dietKafkaService.sendAnalysisRequest(userId, s3Key);
 
-        return sendToDjango(DJANGO_URL_DETECT_WEBCAM, boundary, baos.toByteArray());
+        return ResponseEntity.accepted().body(Map.of(
+                "res_code", "1",
+                "text", "분석이 시작되었습니다. 잠시 후 결과가 화면에 자동으로 표시됩니다.",
+                "diet_s3_key", s3Key
+        ));
     }
 
     /**
-     * 2. 파일 업로드 이미지 판독 요청
+     * 파일 업로드 분석 요청(비동기 파이프라인)
      */
     @PostMapping("/detect/upload")
-    public Mono<String> detectUpload(@RequestParam("mfile") MultipartFile mfile, Authentication authentication) throws IOException {
-        String currentUserId = authentication.getName();
-        String boundary = createBoundary();
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    public ResponseEntity<Map<String, Object>> detectUpload(@RequestParam("mfile") MultipartFile mfile,
+                                                            Authentication authentication) throws IOException {
+        String userId = authentication.getName();
+        String s3Key = s3UploadService.uploadAndGetKey(mfile);
 
-        writePart(baos, boundary, "user_id", null, null, currentUserId.getBytes(StandardCharsets.UTF_8));
+        dietKafkaService.sendAnalysisRequest(userId, s3Key);
 
-        writePart(baos, boundary, "mfile", mfile.getOriginalFilename(), mfile.getContentType(), mfile.getBytes());
-        finishBoundary(baos, boundary);
-
-        return sendToDjango(DJANGO_URL_UPLOAD, boundary, baos.toByteArray());
+        return ResponseEntity.accepted().body(Map.of(
+                "res_code", "1",
+                "text", "분석이 시작되었습니다. 잠시 후 결과가 화면에 자동으로 표시됩니다.",
+                "diet_s3_key", s3Key
+        ));
     }
 
     /**
-     * 3. 웹캠, 업로드 결과 DB 저장 요청
+     * 최종 식단 데이터 저장(Event-Driven Persistence)
+     * 시스템의 안정성과 확장성을 위해 Kafka 기반 비동기 저장
      */
     @PostMapping("/save")
-    public Mono<String> saveDiet(@RequestParam("meal_time") String mealTime,
-                                 @RequestParam("type") String type,
-                                 @RequestParam(value = "use_kafka", defaultValue = "false") boolean useKafka,
-                                 Authentication authentication) throws IOException {
+    public ResponseEntity<Map<String, String>> saveDiet(
+            @RequestParam("meal_time") String mealTime,
+            @RequestParam("diet_s3_key") String dietS3Key,
+            @RequestBody List<FoodInfoResponseDto> foods,
+            Authentication authentication) {
 
-        // 1. SecurityContext에서 완벽하게 ID 추출
         String userId = authentication.getName();
 
-        // 아키텍처 A: Kafka 비동기 이벤트 큐잉 모드(대용량 트래픽 방어)
-        if (useKafka) {
-            dietKafkaService.sendSaveEvent(userId, mealTime, type);
-            return Mono.just("{\"res_code\":\"1\", \"text\":\"[Kafka 대용량 모드] 저장 요청이 안전하게 큐에 접수되었습니다.\"}");
-        }
+        // 직접적인 DB Insert 대신 Kafka 이벤트를 발행하여 DB 커넥션 병목을 방지하고
+        // 트래픽 급증 시에도 안정적인 쓰기 처리를 보장(유량 제어)합니다.
+        dietKafkaService.sendSaveEvent(userId, mealTime, dietS3Key, foods);
 
-        // 아키텍처 B: WebClient 비동기-대기 모드(UX 중심 즉각 피드백)
-        else {
-            String boundary = createBoundary();
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-            writePart(baos, boundary, "user_id", null, null, userId.getBytes(StandardCharsets.UTF_8));
-            writePart(baos, boundary, "meal_time", null, null, mealTime.getBytes(StandardCharsets.UTF_8));
-            finishBoundary(baos, boundary);
-
-            String endpoint = "webcam".equals(type) ? DJANGO_URL_SAVE_WEBCAM : DJANGO_URL_SAVE_UPLOAD;
-
-            // Django의 응답을 끝까지 기다렸다가 프론트로 반환
-            return sendToDjango(endpoint, boundary, baos.toByteArray());
-        }
-    }
-
-    // --- [공통 유틸리티 메소드] ---
-
-    private String createBoundary() {
-        return "TossBoundary_" + UUID.randomUUID().toString().substring(0, 10);
-    }
-
-    private void finishBoundary(ByteArrayOutputStream baos, String boundary) throws IOException {
-        baos.write(("--" + boundary + "--" + CRLF).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private void writePart(ByteArrayOutputStream baos, String boundary, String name, String filename, String contentType, byte[] data) throws IOException {
-        baos.write(("--" + boundary + CRLF).getBytes(StandardCharsets.UTF_8));
-        String disposition = "Content-Disposition: form-data; name=\"" + name + "\"";
-        if (filename != null) disposition += "; filename=\"" + filename + "\"";
-        baos.write((disposition + CRLF).getBytes(StandardCharsets.UTF_8));
-        if (contentType != null) baos.write(("Content-Type: " + contentType + CRLF).getBytes(StandardCharsets.UTF_8));
-        baos.write(CRLF.getBytes(StandardCharsets.UTF_8));
-        baos.write(data);
-        baos.write(CRLF.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private Mono<String> sendToDjango(String uri, String boundary, byte[] rawBody) {
-        return webClient.post()
-                .uri(uri)
-                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .header("Content-Length", String.valueOf(rawBody.length))
-                .bodyValue(rawBody)
-                .retrieve()
-                .bodyToMono(String.class)
-                // Django 서버가 꺼져있거나 에러 발생 시 처리
-                .onErrorResume(e -> {
-                    log.error("Django 서버 통신 실패: {}", e.getMessage());
-                    return Mono.just("{\"res_code\":\"0\", \"text\":\"AI 분석 서버가 현재 점검 중입니다. 잠시 후 다시 시도해주세요.\"}");
-                });
+        return ResponseEntity.ok(Map.of(
+                "res_code", "1",
+                "text", "식단 저장 요청이 안전하게 접수되었습니다."
+        ));
     }
 }

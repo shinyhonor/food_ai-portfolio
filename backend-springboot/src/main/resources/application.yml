@@ -1,11 +1,18 @@
 spring:
+  profiles:
+    active: dev
+
   datasource:
     url: jdbc:oracle:thin:@localhost:1521:xe
     username: food_ai
     password: a1234
     driver-class-name: oracle.jdbc.OracleDriver
     hikari:
-      maximum-pool-size: 50 # 서비스 상황에 맞게 모니터링 후 조정
+      # 가상 스레드 환경에서는 Thread-per-request가 매우 많아지므로
+      # 커넥션 획득 대기열이 길어질 수 있습니다. 50개는 적정 수준이나 운영 시 모니터링 후 조정
+      maximum-pool-size: 50
+      minimum-idle: 10
+      pool-name: FoodAiHikariPool
 
   jpa:
     hibernate:
@@ -27,26 +34,48 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # 안정성을 위해 멱등성 프로듀서 활성화(Java 21 환경)
+      properties:
+        enable.idempotence: true
     consumer:
-      group-id: "food-ai-group"
+      group-id: "food-ai-analysis-group"
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
   threads:
     virtual:
-      enabled: true # 가상 스레드 활성화
+      enabled: true # 가상 스레드 활성화(Java 21 환경)
 
+jwt:
+  secret: ${JWT_SECRET_KEY:default_secret_key_for_local_test_32chars_min}
+  namespace: "food-ai:rt:"
 
 server:
   port: 8082
-
   tomcat:
-    max-connections: 12000 # 10,000명 접속 대비
+    # 가상 스레드 사용 시 max-threads 제약이 사실상 사라지므로
+    # 동시 연결 수(max-connections)를 높게 가져가는 것이 유리
+    max-connections: 12000
     accept-count: 1000
 
-#DB 환경 로그 확인
-#logging:
-#  level:
-#    com.zaxxer.hikari: DEBUG
+cloud:
+  aws:
+    s3:
+      endpoint: http://127.0.0.1:9000
+    credentials:
+      access-key: minioadmin
+      secret-key: minioadmin
+    region:
+      static: ap-northeast-2
 
+application:
+  bucket:
+    name: food-ai-bucket
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %clr(%-5level) %clr([%X{traceId:-no-id}]){magenta} %logger{36} - %msg%n"
+  level:
+    org.springframework.web.servlet.PageNotFound: DEBUG
+    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping: TRACE

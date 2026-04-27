@@ -5,19 +5,21 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "USERS") // 오라클 테이블명과 일치
+@Table(name = "USERS")
 @Getter
-@NoArgsConstructor
+@NoArgsConstructor(access = lombok.AccessLevel.PROTECTED)
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "MEMBER_NO")
     private Long memberNo;
 
-    @Column(name = "USER_ID", unique = true)
+    @Column(name = "USER_ID", unique = true, nullable = false)
     private String userId;
 
-    private String password; // BCrypt 암호화된 비밀번호
+    @Column(nullable = false)
+    private String password;
 
-    private String role; // 예: "ROLE_USER"
+    private String role;
 }

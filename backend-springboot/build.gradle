@@ -24,19 +24,47 @@ repositories {
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-security'
+	// --- Web & Security ---
 	implementation 'org.springframework.boot:spring-boot-starter-web'
-	compileOnly 'org.projectlombok:lombok'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-webflux' // WebClient 사용을 위함
+	// Jakarta Validation API 및 구현체(Hibernate Validator) 추가
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	// --- Database & Persistence ---
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	runtimeOnly 'com.oracle.database.jdbc:ojdbc11'
+
+	// --- Cache & NoSQL ---
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.boot:spring-boot-starter-cache'
+	implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+	implementation 'org.redisson:redisson-spring-boot-starter:3.27.0'
+
+	// --- Messaging & Cloud ---
+	implementation 'org.springframework.kafka:spring-kafka'
+	implementation 'software.amazon.awssdk:s3:2.25.11'
+
+	// --- JWT (0.12.5 버전) ---
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
+
+	// MapStruct
+	implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+	annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+
+	// Lombok과 MapStruct를 같이 사용하기 위한 바인딩
+	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
+
+	// --- Utils ---
+	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
+
+	// --- Test ---
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-	implementation 'org.springframework.boot:spring-boot-starter-webflux'
-	implementation 'org.apache.httpcomponents.client5:httpclient5'
-	implementation 'org.redisson:redisson-spring-boot-starter:3.27.0'
-	implementation 'org.springframework.kafka:spring-kafka'
 }
 
 tasks.named('test') {

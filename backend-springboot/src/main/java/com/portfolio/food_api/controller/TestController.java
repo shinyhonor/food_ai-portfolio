@@ -15,7 +15,7 @@ import java.time.Duration;
 @RequestMapping("/api/test")
 public class TestController {
 
-    // 1. 동기(Blocking) 방식: 전통적인 톰캣 쓰레드 물고 늘어지기
+    // 동기(Blocking) 방식: 전통적인 톰캣 쓰레드 물고 늘어지기
     @GetMapping("/blocking")
     public String blocking() throws InterruptedException {
         log.info("Blocking 요청 수신 - Thread: {}", Thread.currentThread().getName());
@@ -24,7 +24,7 @@ public class TestController {
         return "Blocking 완료";
     }
 
-    // 2. 비동기(Non-blocking) 방식: Netty EventLoop 활용
+    // 비동기(Non-blocking) 방식: Netty EventLoop 활용
     @GetMapping("/non-blocking")
     public Mono<String> nonBlocking() {
         log.info("Non-blocking 요청 수신 - Thread: {}", Thread.currentThread().getName());
@@ -33,5 +33,3 @@ public class TestController {
                 .map(i -> "Non-blocking 완료");
     }
 }
-
-

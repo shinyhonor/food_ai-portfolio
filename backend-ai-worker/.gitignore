@@ -5,6 +5,3 @@ __pycache__/
 
 # PyCharm 설정 파일
 .idea/
-
-# 로컬 데이터베이스
-db.sqlite3

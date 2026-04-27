@@ -12,6 +12,10 @@ import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * [동시성 Test] 멀티 스레드 환경의 데이터 정합성 검증
+ * CountDownLatch를 활용하여 100명의 동시 요청을 시뮬레이션합니다.
+ */
 @SpringBootTest
 public class BankConcurrencyTest {
 
@@ -19,39 +23,33 @@ public class BankConcurrencyTest {
     private BankController bankController;
 
     @Test
-    @DisplayName("100명의 사용자가 동시에 100원씩 출금하면, 잔액은 정확히 0원이 되어야 한다.")
+    @DisplayName("100명 동시 출금 테스트: Redis 분산 락을 통한 데이터 무결성 검증")
     void withdraw_concurrency_test() throws InterruptedException {
-        // 1. 준비
         int threadCount = 100;
-        bankController.resetBalance(); // 잔액을 10,000원으로 초기화
+        bankController.resetBalance();
 
-        // 32개의 쓰레드를 가진 풀을 생성하여 100명의 유저를 흉내 냄
+        // 가상 스레드 환경에서도 작동하는 동시성 테스트 설계
         ExecutorService executorService = Executors.newFixedThreadPool(32);
-
-        // 100개의 쓰레드가 모두 끝날 때까지 메인 쓰레드가 기다리게 해주는 장치
         CountDownLatch latch = new CountDownLatch(threadCount);
 
-        // 2. 실행 - 100번의 출금 요청을 동시에 쓰레드 풀에 던짐
         for (int i = 0; i < threadCount; i++) {
             executorService.submit(() -> {
                 try {
-                    bankController.withdraw(); // Redis 락이 걸려있는 출금 로직 호출
+                    bankController.withdraw();
                 } catch (Exception e) {
-                    throw new RuntimeException(e);
+                    System.err.println("Test Error: " + e.getMessage());
                 } finally {
-                    latch.countDown(); // 쓰레드 하나가 끝날 때마다 카운트 -1
+                    latch.countDown();
                 }
             });
         }
 
-        // 모든 쓰레드가 끝날 때까지 대기(CountDownLatch가 0이 될 때까지)
-        latch.await();
+        latch.await(); // 모든 스레드 종료 대기
 
-        // 3. 검증
         String result = bankController.checkBalance();
-        System.out.println("테스트 종료 후 " + result);
+        System.out.println("[Test Result] " + result);
 
-        // 잔액이 정확히 0원인지 검증!
+        // 100번의 트랜잭션이 완벽하게 직렬화되었음을 확인
         assertThat(result).isEqualTo("최종 잔액: 0원");
     }
 }

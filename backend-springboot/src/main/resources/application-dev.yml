@@ -1,0 +1,4 @@
+jwt:
+  cookie:
+    secure: false
+    same-site: "Lax"
