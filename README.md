@@ -18,6 +18,8 @@
 - Python AI 워커, 추론 데몬
 - MinIO, 중앙 오브젝트 스토리지
 
+![네트워크 다이어그램](./resource/network.png)
+
 ### 전체 처리 흐름
 
 1. 업로드 단계: Vue가 BFF를 통해 이미지를 MinIO에 저장하고, Kafka에 추론 요청 이벤트를 발행합니다.
