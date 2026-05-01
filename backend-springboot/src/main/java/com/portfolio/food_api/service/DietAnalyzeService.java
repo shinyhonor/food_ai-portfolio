@@ -56,7 +56,7 @@ public class DietAnalyzeService {
         Nutrient n = (l1 != null) ? l1.get(classId, Nutrient.class) : null;
         if (n != null) return n;
 
-        log.info("🌐 [L1 Miss] Checking Redis(L2) for ID: {}", classId);
+        log.info("[L1 Miss] Checking Redis(L2) for ID: {}", classId);
         Cache l2 = redisCacheManager.getCache("nutrients");
         n = (l2 != null) ? l2.get(classId, Nutrient.class) : null;
 

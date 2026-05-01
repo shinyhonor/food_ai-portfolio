@@ -41,7 +41,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDeniedException(AccessDeniedException e) {
-        log.warn("🚫 [Access Denied] Unauthorized access attempt");
+        log.warn("[Access Denied] Unauthorized access attempt");
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new ErrorResponse("0", "해당 작업에 대한 권한이 없습니다.", null));
     }
